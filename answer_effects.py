@@ -4,12 +4,15 @@ from aqt import mw
 from aqt import gui_hooks
 import ctypes
 from threading import Timer
+import platform   # <-- added for platform check
 
-streak = 0
-effect_queue = 0
+# ----------------------------------------------------------------------
+# Configuration (loaded once at import time)
+# ----------------------------------------------------------------------
 addon_path = os.path.dirname(__file__)
 user_files = os.path.join(addon_path, "user_files")
 config = mw.addonManager.getConfig(__name__)
+
 is_rumble = config["rumble"]
 is_popups = config["popups"]
 is_buttons = config["buttons"]
@@ -18,35 +21,83 @@ is_audio = config["audio"]
 audio_wrong = os.path.join(user_files, "wrong.mp3")
 audio_correct = os.path.join(user_files, "correct.mp3")
 
-
-# Define necessary structures
+# ----------------------------------------------------------------------
+# Define necessary structures for XInput vibration
+# ----------------------------------------------------------------------
 class XINPUT_VIBRATION(ctypes.Structure):
     _fields_ = [("wLeftMotorSpeed", ctypes.c_ushort),
                 ("wRightMotorSpeed", ctypes.c_ushort)]
 
+# ----------------------------------------------------------------------
+# Safe loader for xinput1_1.dll
+# ----------------------------------------------------------------------
+def _load_xinput():
+    """
+    Load xinput1_1.dll only when:
+      * we are on Windows,
+      * the user has enabled rumble in the config,
+      * the DLL can be found and loaded.
+    Returns the loaded DLL object or None if loading fails or is not needed.
+    """
+    # 1️⃣ Only attempt on Windows
+    if platform.system() != "Windows":
+        return None
 
-if os.name == "nt":  # windows
+    # 2️⃣ Respect the user’s rumble setting
+    if not is_rumble:
+        return None
+
+    # 3️⃣ Build a reliable path to the DLL (System32 is the usual location)
+    dll_path = os.path.join(
+        os.environ.get("SystemRoot", r"C:\Windows"),
+        "System32",
+        "xinput1_1.dll"
+    )
+
+    # 4️⃣ Verify the file exists before trying to load it
+    if not os.path.isfile(dll_path):
+        # Optional: uncomment for debugging
+        # print("[Duolingo gamification] XInput DLL not found at:", dll_path)
+        return None
+
     try:
-        xinput = ctypes.windll.xinput1_1  # Load Xinput.dll
-        # Set up function argument types and return type
-        XInputSetState = xinput.XInputSetState
-        XInputSetState.argtypes = [ctypes.c_uint, ctypes.POINTER(XINPUT_VIBRATION)]
-        XInputSetState.restype = ctypes.c_uint
-        rumble_enabled = True
-    except FileNotFoundError:
-        rumble_enabled = False
+        # Use WinDLL (matches the original ctypes.windll.xinput1_1 call)
+        return ctypes.WinDLL(dll_path)
+    except OSError as e:
+        # Optional: uncomment for debugging
+        # print("[Duolingo gamification] Failed to load XInput DLL:", e)
+        return None
 
+# Load the DLL once at import time; the variable name matches the original usage
+xinput = _load_xinput()
+
+# Prepare the XInputSetState prototype only if we actually got a DLL
+if xinput is not None:
+    XInputSetState = xinput.XInputSetState
+    XInputSetState.argtypes = [ctypes.c_uint, ctypes.POINTER(XINPUT_VIBRATION)]
+    XInputSetState.restype = ctypes.c_uint
 else:
-    rumble_enabled = False
-if is_rumble == 0:
-    rumble_enabled = False
+    # Dummy function that does nothing – makes later calls safe
+    def XInputSetState(*args, **kwargs):
+        return 0
 
-
+# ----------------------------------------------------------------------
+# Helper to send vibration data to the controller
+# ----------------------------------------------------------------------
 def set_vibration(controller, left_motor, right_motor):
-    vibration = XINPUT_VIBRATION(int(left_motor * 65535), int(right_motor * 65535))
+    """
+    controller: index of the XInput controller (0‑3)
+    left_motor, right_motor: float in range 0.0‑1.0
+    """
+    vibration = XINPUT_VIBRATION(
+        int(left_motor * 65535),
+        int(right_motor * 65535)
+    )
     XInputSetState(controller, ctypes.byref(vibration))
 
-
+# ----------------------------------------------------------------------
+# Audio playback helpers
+# ----------------------------------------------------------------------
 def play_sound(sound_path):
     global is_audio
     if not is_audio:
@@ -56,20 +107,23 @@ def play_sound(sound_path):
         1, lambda: play(sound_path), False
     )
 
-
 def _play_tags(self, tags):
     self._enqueued = tags[:]
     if self.interrupt_current_audio and False:
         self._stop_if_playing()
     self._play_next_if_idle()
 
-
 AVPlayer.play_tags = _play_tags
 
-
+# ----------------------------------------------------------------------
+# Rumble (haptic feedback) – safe wrapper
+# ----------------------------------------------------------------------
 def rumble(duration, intensity):
-    """duration in seconds, intensity in 0-1"""
-    if not rumble_enabled:  # windows
+    """
+    duration in seconds, intensity in 0‑1
+    Does nothing if rumble is disabled or the DLL could not be loaded.
+    """
+    if xinput is None:          # covers both disabled rumble and missing DLL
         return
     set_vibration(0, intensity, intensity)
 
@@ -78,7 +132,9 @@ def rumble(duration, intensity):
     t = Timer(duration, unfreeze)
     t.start()
 
-
+# ----------------------------------------------------------------------
+# Hook callbacks
+# ----------------------------------------------------------------------
 def prepare(html, card, context):
     global effect_queue
     if context != "reviewQuestion" or effect_queue == 0:
@@ -167,8 +223,7 @@ def prepare(html, card, context):
 
   }}
 }}
-</script>"""
-
+</style>"""
 
 gui_hooks.card_will_show.append(prepare)
 
