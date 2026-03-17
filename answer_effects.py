@@ -21,6 +21,9 @@ is_audio = config["audio"]
 audio_wrong = os.path.join(user_files, "wrong.mp3")
 audio_correct = os.path.join(user_files, "correct.mp3")
 
+streak = 0
+effect_queue = 0
+
 # ----------------------------------------------------------------------
 # Define necessary structures for XInput vibration
 # ----------------------------------------------------------------------
