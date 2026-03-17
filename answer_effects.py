@@ -269,20 +269,26 @@ def reset_hooks():
     is_buttons = config["buttons"]
     is_audio = config["audio"]
 
-    gui_hooks.reviewer_did_answer_card.remove(on_review_haptics)
+    try:
+        gui_hooks.reviewer_did_answer_card.remove(on_review_haptics)
+    except ValueError:
+        pass
     if is_rumble:
         gui_hooks.reviewer_did_answer_card.append(on_review_haptics)
 
-    gui_hooks.reviewer_did_answer_card.remove(on_review_visuals)
+    try:
+        gui_hooks.reviewer_did_answer_card.remove(on_review_visuals)
+    except ValueError:
+        pass
     if is_popups:
         gui_hooks.reviewer_did_answer_card.append(on_review_visuals)
 
-    # Consider adding to the  "will_answer" hook to make sure we preempt the next card
-    gui_hooks.reviewer_did_answer_card.remove(on_review_audio)
+    try:
+        gui_hooks.reviewer_did_answer_card.remove(on_review_audio)
+    except ValueError:
+        pass
     if is_audio:
         gui_hooks.reviewer_did_answer_card.append(on_review_audio)
 
     gui_hooks.reviewer_did_answer_card.append(on_reviewer_did_answer_card)
 
-
-reset_hooks()
