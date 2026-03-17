@@ -1,6 +1,6 @@
 {
-  "rumble": 1,
-  "popups": 1,
-  "buttons": 1,
-  "audio": 1
+  "rumble": true,
+  "popups": true,
+  "buttons": true,
+  "audio": true
 }
