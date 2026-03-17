@@ -1,10 +1,9 @@
 {
-  "package": "duomed(updated)",
-  "name": "Duolingo‑style gamification",
-  "version": "1.0.0",
+  "package": "duomed_updated",
+  "name": "Duolingo-style gamification – visual, audio & haptic feedback (Updated)",
+  "version": "1.1.0",
   "author": "avanteGarbage, updated by Lea-Sophie",
   "min_anki_version": "23.0",
-  "max_anki_version": "25.99",
-  "platforms": ["windows", "mac", "linux"],
-  "addon_id": 
+  "max_anki_version": "99.99",
+  "platforms": ["windows", "mac", "linux"]
 }
